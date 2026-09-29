@@ -1,0 +1,278 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "transcribe",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "1daf9e87-6e82-402d-be41-652ccf6db2d5",
+      "name": "Webhook",
+      "webhookId": "297437c9-9d6d-445d-bad5-68931957c986"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-flash-lite-latest",
+          "mode": "list",
+          "cachedResultName": "models/gemini-flash-lite-latest"
+        },
+        "text": "What's in this audioListen to this audio carefully. It contains spoken language in a mix of Urdu and English (Hinglish/Roman Urdu). Convert it precisely into written Roman Urdu text. Do not translate it to English, just transcribe exactly what was spoken.?",
+        "inputType": "binary",
+        "binaryPropertyName": "file",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "b188b3f9-b34b-44fd-931d-370454b4dc91",
+      "name": "Analyze audio",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "pkkOHkewNY9FOOi5",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={\n \"transcription\" : \"{{ $json.content.parts[0].text }}\"\n} ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "3154f852-925b-423b-84c7-4f1f51ed36f0",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "execute",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        288
+      ],
+      "id": "ebabbb5e-9156-4815-8cf2-21756003da89",
+      "name": "Webhook1",
+      "webhookId": "8182d744-30ad-4d3f-a423-edc01d8bcccb"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3-flash-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a smart task classifier and executive assistant. Analyze the following user input (written in Roman Urdu or English). \nExtract the core details and output them strictly as a raw JSON object. Do not include any markdown formatting like ```json or trailing text. Everything must be in English.\n\nFor the email body, draft a formal, polite professional email based on the user's intent. Always sign off the email with exactly:\n\"Best regards,\nKhan\n\nJSON Schema to follow:\n{\n  \"task_title\": \"Clean concise task title in English\",\n  \"is_email_task\": true/false,\n  \"recipient_email\": \"extracted email address or null\",\n  \"email_subject\": \"Professional English subject line if applicable, else null\",\n  \"email_body\": \"Polite professional email body in English with Khan signature, else null\"\n}\n\nUser Input:\n{{ $json.body.text }}",
+              "role": "model"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        144,
+        288
+      ],
+      "id": "3c0def7f-0008-4eb4-95e9-8cf109f3625e",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "pkkOHkewNY9FOOi5",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let rawText = $input.first().json.content.parts[1].text || \"\";\n\nif (!rawText) {\n    return {\n        json: {\n            task_title: \"New Task Via Voice\",\n            is_email_task: false,\n            recipient_email: null,\n            email_subject: null,\n            email_body: null\n        }\n    };\n}\n\ntry {\n    if (rawText.includes(\"```json\")) {\n        rawText = rawText.split(\"```json\")[1].split(\"```\")[0];\n    } else if (rawText.includes(\"```\")) {\n        rawText = rawText.split(\"```\")[1].split(\"```\")[0];\n    }\n\n    const parsedData = JSON.parse(rawText.trim());\n\n    return {\n        json: {\n            task_title: parsedData.task_title || \"New Task Via Voice\",\n            is_email_task: parsedData.is_email_task || false,\n            recipient_email: parsedData.recipient_email || null,\n            email_subject: parsedData.email_subject || null,\n            email_body: parsedData.email_body || null\n        }\n    };\n\n} catch (error) {\n    return {\n        json: {\n            error: \"Failed to parse JSON string from LLM\",\n            raw_text: rawText\n        }\n    };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        288
+      ],
+      "id": "369252e1-4d54-4947-8929-63fe5e614187",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.recipient_email }}",
+        "subject": "={{ $json.email_subject }}",
+        "emailType": "text",
+        "message": "={{ $json.email_body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        736,
+        288
+      ],
+      "id": "5817fe33-a47b-4c76-867d-dfa729d2e660",
+      "name": "Send a message",
+      "webhookId": "24745cd5-a0d9-4203-b001-0ef875425fe8",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "TsRRMLt5j0VignlW",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "Voice Assistant",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "task_title",
+              "fieldValue": "={{ $('Code in JavaScript').item.json.task_title }}"
+            },
+            {
+              "fieldId": "task_description",
+              "fieldValue": "={{ $('Code in JavaScript').item.json.email_subject }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "Emailed & Send"
+            },
+            {
+              "fieldId": "task_assigned_to",
+              "fieldValue": "={{ $('Code in JavaScript').item.json.recipient_email }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        960,
+        288
+      ],
+      "id": "956d5385-872b-4648-87d0-35896ced769e",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "gVUogoLAf9CEtnFy",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Analyze audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze audio": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d9901229-7822-4e33-a936-68bc24426e7d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0207ab8c082bb15f4eb32c5d4bf0b65c1c056749ba831c21c4ccd83b25e3661f"
+  },
+  "nodeGroups": [],
+  "id": "lSf3nq2nWdCWbG7a",
+  "tags": []
+}
